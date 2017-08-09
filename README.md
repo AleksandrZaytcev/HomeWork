@@ -7,4 +7,4 @@
 slack: Alexander Zaytsev(@alexander_zaytsev)
 
 email: <Aleksandr.Zaytcev@gmail.com>  
-       <Radikal777@mail.ru>
+    <Radikal777@mail.ru>

@@ -1,4 +1,3 @@
 .DS_Store
 .idea/
-Logs/.DS_Store
 Logs/nginx-access-ui.log-20170630

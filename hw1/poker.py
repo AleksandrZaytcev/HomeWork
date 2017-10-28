@@ -23,66 +23,80 @@
 # любого ранга.
 
 # Одна функция уже реализована, сигнатуры и описания других даны.
-# Вам наверняка пригодится itertoolsю
+# Вам наверняка пригодится itertools
 # Можно свободно определять свои функции и т.п.
 # -----------------
+
+import itertools
 
 
 def hand_rank(hand):
     """Возвращает значение определяющее ранг 'руки'"""
     ranks = card_ranks(hand)
+
     if straight(ranks) and flush(hand):
-        return (8, max(ranks))
+        return 8, max(ranks)
     elif kind(4, ranks):
-        return (7, kind(4, ranks), kind(1, ranks))
+        return 7, kind(4, ranks), kind(1, ranks)
     elif kind(3, ranks) and kind(2, ranks):
-        return (6, kind(3, ranks), kind(2, ranks))
+        return 6, kind(3, ranks), kind(2, ranks)
     elif flush(hand):
-        return (5, ranks)
+        return 5, ranks
     elif straight(ranks):
-        return (4, max(ranks))
+        return 4, max(ranks)
     elif kind(3, ranks):
-        return (3, kind(3, ranks), ranks)
+        return 3, kind(3, ranks), ranks
     elif two_pair(ranks):
-        return (2, two_pair(ranks), ranks)
+        return 2, two_pair(ranks), ranks
     elif kind(2, ranks):
-        return (1, kind(2, ranks), ranks)
+        return 1, kind(2, ranks), ranks
     else:
-        return (0, ranks)
+        return 0, ranks
 
 
 def card_ranks(hand):
-    """Возвращает список рангов (его числовой эквивалент),
-    отсортированный от большего к меньшему"""
-    return
+    """Возвращает список рангов (его числовой эквивалент), отсортированный от большего к меньшему"""
+    return sorted(['23456789TJQKA'.index(rank) for rank, suit in hand], reverse=True)
 
 
 def flush(hand):
     """Возвращает True, если все карты одной масти"""
-    return
+    return len(set([suit for rank, suit in hand])) == 1
 
 
 def straight(ranks):
     """Возвращает True, если отсортированные ранги формируют последовательность 5ти,
     где у 5ти карт ранги идут по порядку (стрит)"""
-    return
+
+    _ranks = set(ranks)
+    return len(_ranks) == 5 and max(_ranks) - min(_ranks) == 4
 
 
 def kind(n, ranks):
     """Возвращает первый ранг, который n раз встречается в данной руке.
     Возвращает None, если ничего не найдено"""
-    return
+
+    for rank in ranks:
+        if ranks.count(rank) == n:
+            return rank
+    return None
 
 
 def two_pair(ranks):
     """Если есть две пары, то возврщает два соответствующих ранга,
     иначе возвращает None"""
-    return
+
+    pair_first = kind(2, ranks)
+    pair_second = kind(2, list(reversed(ranks)))
+
+    if pair_first is not None and pair_second is not None and pair_first != pair_second:
+        return pair_first, pair_second
+    return None
 
 
 def best_hand(hand):
     """Из "руки" в 7 карт возвращает лучшую "руку" в 5 карт """
-    return
+    return max(itertools.combinations(hand, 5), key=hand_rank)
 
 
 def best_wild_hand(hand):
@@ -92,25 +106,20 @@ def best_wild_hand(hand):
 
 def test_best_hand():
     print "test_best_hand..."
-    assert (sorted(best_hand("6C 7C 8C 9C TC 5C JS".split()))
-            == ['6C', '7C', '8C', '9C', 'TC'])
-    assert (sorted(best_hand("TD TC TH 7C 7D 8C 8S".split()))
-            == ['8C', '8S', 'TC', 'TD', 'TH'])
-    assert (sorted(best_hand("JD TC TH 7C 7D 7S 7H".split()))
-            == ['7C', '7D', '7H', '7S', 'JD'])
+    assert (sorted(best_hand("6C 7C 8C 9C TC 5C JS".split())) == ['6C', '7C', '8C', '9C', 'TC'])
+    assert (sorted(best_hand("TD TC TH 7C 7D 8C 8S".split())) == ['8C', '8S', 'TC', 'TD', 'TH'])
+    assert (sorted(best_hand("JD TC TH 7C 7D 7S 7H".split())) == ['7C', '7D', '7H', '7S', 'JD'])
     print 'OK'
 
 
 def test_best_wild_hand():
     print "test_best_wild_hand..."
-    assert (sorted(best_wild_hand("6C 7C 8C 9C TC 5C ?B".split()))
-            == ['7C', '8C', '9C', 'JC', 'TC'])
-    assert (sorted(best_wild_hand("TD TC 5H 5C 7C ?R ?B".split()))
-            == ['7C', 'TC', 'TD', 'TH', 'TS'])
-    assert (sorted(best_wild_hand("JD TC TH 7C 7D 7S 7H".split()))
-            == ['7C', '7D', '7H', '7S', 'JD'])
+    assert (sorted(best_wild_hand("6C 7C 8C 9C TC 5C ?B".split())) == ['7C', '8C', '9C', 'JC', 'TC'])
+    assert (sorted(best_wild_hand("TD TC 5H 5C 7C ?R ?B".split())) == ['7C', 'TC', 'TD', 'TH', 'TS'])
+    assert (sorted(best_wild_hand("JD TC TH 7C 7D 7S 7H".split())) == ['7C', '7D', '7H', '7S', 'JD'])
     print 'OK'
+
 
 if __name__ == '__main__':
     test_best_hand()
-    test_best_wild_hand()
+    #test_best_wild_hand()

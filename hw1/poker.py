@@ -29,6 +29,11 @@
 
 import itertools
 
+RANK = '23456789TJQKA'
+BLACK_JOKER = '?B'
+RED_JOKER = '?R'
+SUITS_JOKER = {BLACK_JOKER: "CS", RED_JOKER: "HD"}  # масти джокеров
+
 
 def hand_rank(hand):
     """Возвращает значение определяющее ранг 'руки'"""
@@ -56,7 +61,7 @@ def hand_rank(hand):
 
 def card_ranks(hand):
     """Возвращает список рангов (его числовой эквивалент), отсортированный от большего к меньшему"""
-    return sorted(['23456789TJQKA'.index(rank) for rank, suit in hand], reverse=True)
+    return sorted([RANK.index(rank) for rank, suit in hand], reverse=True)
 
 
 def flush(hand):
@@ -99,9 +104,64 @@ def best_hand(hand):
     return max(itertools.combinations(hand, 5), key=hand_rank)
 
 
+red_cards = []
+black_cards = []
+
+
+def init_cards():
+    """Заполняем массивы красных и черных карт"""
+    for rank in RANK:
+        for suit in 'HD':
+            red_cards.append("{0}{1}".format(rank, suit))
+        for suit in "CS":
+            black_cards.append("{0}{1}".format(rank, suit))
+    return
+
+
 def best_wild_hand(hand):
     """best_hand но с джокерами"""
-    return
+
+    # если нет джокеров
+    if hand.count(BLACK_JOKER) == 0 and hand.count(RED_JOKER) == 0:
+        return best_hand(hand)
+
+    clear_hand = [card for card in hand if card not in SUITS_JOKER]  # читая рука без джокеров
+
+    # массивы комбинаций красного и черного джокера исключая те, что есть вруке
+    _black_cards = joker_combinations(BLACK_JOKER, clear_hand) if BLACK_JOKER in hand else None
+    _red_cards = joker_combinations(RED_JOKER, clear_hand) if RED_JOKER in hand else None
+
+    # объеденяем массивы в массив массивов по 2 эл или 1 если джокер 1
+    if _black_cards and _red_cards:
+        cards = [item for item in itertools.product(_black_cards, _red_cards)]
+    elif _black_cards:
+        cards = list(_black_cards)
+    else:
+        cards = list(_red_cards)
+
+    # к чистым картам добавляем значение из массива массивов
+    # possible_hands = itertools.product(clear_hand, cards)
+    possible_hands = []
+    for card in cards:
+        new_hand = list(clear_hand)
+
+        if BLACK_JOKER in hand and RED_JOKER in hand:
+            new_hand.extend(card)
+        else:
+            new_hand.append(card)
+        possible_hands.append(new_hand)
+
+    # выбираем сильнейшую руку
+    return max(set([best_hand(h) for h in possible_hands]), key=hand_rank)
+
+
+def joker_combinations(joker, clear_hand):
+    result = []
+    for rank, suit in itertools.product(RANK, SUITS_JOKER[joker]):
+        card = "{0}{1}".format(rank, suit)
+        if card not in clear_hand:
+            result.append(card)
+    return result
 
 
 def test_best_hand():
@@ -122,4 +182,4 @@ def test_best_wild_hand():
 
 if __name__ == '__main__':
     test_best_hand()
-    #test_best_wild_hand()
+    test_best_wild_hand()

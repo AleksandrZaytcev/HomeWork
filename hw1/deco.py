@@ -4,48 +4,74 @@
 from functools import update_wrapper
 
 
-def disable():
-    '''
+def disable(func):
+    """
     Disable a decorator by re-assigning the decorator's name
     to this function. For example, to turn off memoization:
 
     >>> memo = disable
+    """
+    return func
 
-    '''
-    return
 
-
-def decorator():
-    '''
+def decorator(deco):
+    """
     Decorate a decorator so that it inherits the docstrings
     and stuff from the function it's decorating.
-    '''
-    return
+    """
+
+    def wrapper(func):
+        return update_wrapper(deco(func), func)
+
+    return update_wrapper(wrapper, deco)
 
 
-def countcalls():
-    '''Decorator that counts calls made to the function decorated.'''
-    return
+@decorator
+def count_calls(func):
+    """Decorator that counts calls made to the function decorated."""
+
+    def wrapper(*args, **kwargs):
+        wrapper.calls += 1
+        return func(*args, **kwargs)
+
+    wrapper.calls = 0
+    return wrapper
 
 
-def memo():
-    '''
+@decorator
+def memo(func):
+    """
     Memoize a function so that it caches all return values for
     faster future lookups.
-    '''
-    return
+    """
+
+    def wrapper(*args, **kwargs):
+        update_wrapper(wrapper, func)
+        key = args, frozenset(kwargs.items()) if kwargs else args
+        if key in wrapper.cache:
+            return wrapper.cache[key]
+        res = wrapper.cache[key] = func(*args, **kwargs)
+        return res
+
+    wrapper.cache = {}
+    return wrapper
 
 
-def n_ary():
-    '''
+@decorator
+def n_ary(func):
+    """
     Given binary function f(x, y), return an n_ary function such
     that f(x, y, z) = f(x, f(y,z)), etc. Also allow f(x) = x.
-    '''
-    return
+    """
+
+    def wrapper(x, *args):
+        return x if not args else func(x, wrapper(*args))
+
+    return wrapper
 
 
-def trace():
-    '''Trace calls made to function decorated.
+def trace(fill_value):
+    """Trace calls made to function decorated.
 
     @trace("____")
     def fib(n):
@@ -63,29 +89,46 @@ def trace():
     ____ <-- fib(1) == 1
      <-- fib(3) == 3
 
-    '''
-    return
+    """
+
+    @decorator
+    def tracer(func):
+        def wrapper(*args):
+            prefix = fill_value * wrapper.level
+            fags = ", ".join(str(a) for a in args)
+            print "{} --> {}({})".format(prefix, func.__name__, fags)
+            wrapper.level += 1
+            result = func(*args)
+            print "{} <-- {}({}) == {}".format(prefix, func.__name__, fags, result)
+            wrapper.level -= 1
+            return result
+
+        wrapper.level = 0
+        return wrapper
+
+    return tracer
+
 
 
 @memo
-@countcalls
+@count_calls
 @n_ary
 def foo(a, b):
     return a + b
 
 
-@countcalls
+@count_calls
 @memo
 @n_ary
 def bar(a, b):
     return a * b
 
 
-@countcalls
+@count_calls
 @trace("####")
 @memo
 def fib(n):
-    return 1 if n <= 1 else fib(n-1) + fib(n-2)
+    return 1 if n <= 1 else fib(n - 1) + fib(n - 2)
 
 
 def main():

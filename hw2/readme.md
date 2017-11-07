@@ -14,4 +14,4 @@ https://hackernoon.com/modifying-the-python-language-in-7-minutes-b94b0a99ce14
 **В результате выполнения кажого задания получается:**
 1. бинарь python
 2. git diff > my.patch
-   * имя патча в зависимости от задания: new_opcode. patch, unitl.patch, inc.patch
+   * имя патча в зависимости от задания: new_opcode.patch, unitl.patch, inc.patch

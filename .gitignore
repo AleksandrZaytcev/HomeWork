@@ -1,4 +1,9 @@
 # Created by .ignore support plugin (hsz.mobi)
-.gitignore
-.idea/inspectionProfiles/
+/.idea
 .DS_Store
+.idea/
+hw1/.DS_Store
+hw1/.gitignore
+hw1/.idea/
+hw1/Logs/.DS_Store
+hw3/.DS_Store

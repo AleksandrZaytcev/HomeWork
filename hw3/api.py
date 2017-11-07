@@ -81,15 +81,15 @@
 # Требование: в результате в git должно быть только два(2!) файлика: api.py, test.py.
 # Deadline: следующее занятие
 
-import abc
 import json
-import random
 import datetime
 import logging
 import hashlib
 import uuid
 from optparse import OptionParser
 from BaseHTTPServer import HTTPServer, BaseHTTPRequestHandler
+from lepl.apps.rfc3696 import Email
+from abc import ABCMeta, abstractmethod
 
 SALT = "Otus"
 ADMIN_LOGIN = "admin"
@@ -117,36 +117,109 @@ GENDERS = {
 }
 
 
-class CharField(object):
+# region Fields
+class BaseField:
+    """Базовый класс для полей"""
+    __metaclass__ = ABCMeta
+
+    def __init__(self, required=False, nullable=False):
+        self.required = required
+        self.nullable = nullable
+
+    @abstractmethod
+    def validate(self, value): pass
+
+
+class CharField(BaseField):
+    """Текстовоге поле"""
+
+    def validate(self, value):
+        if not isinstance(value, str):
+            raise TypeError(
+                "Не верный тип параметра {0} - {1}. Праматр должен быть типа {2}".format(value, type(value), type(str)))
+
     pass
 
 
-class ArgumentsField(object):
+class ArgumentsField(BaseField):
+    """Поле аргументов"""
+
+    def validate(self, value):
+        if not isinstance(value, dict):
+            raise TypeError(
+                "Не верный тип параметра {} - {}. Праматр должен быть типа {}".format(value, type(value), type(dict)))
+
     pass
 
 
 class EmailField(CharField):
+    """Поле e-mail"""
+
+    def validate(self, value):
+        super(EmailField, self).validate(value)
+        if Email(value):
+            raise TypeError("Не верный тип параметра {}. Должен быть e-mail : example@ex.com".format(value))
+
     pass
 
 
-class PhoneField(object):
+class PhoneField(BaseField):
+    """Телефонный номер"""
+
+    def validate(self, value):
+        if not isinstance(value, str) and not isinstance(value, int) \
+                and len(value) == 11 and str(value).startswith('7'):
+            raise TypeError("Не верный тип параметра {}. Должен быть телефон, формат: 7ХХХХХХХХХХ".format(value))
+
     pass
 
 
-class DateField(object):
+class DateField(BaseField):
+    """Дата в формате ДД.ММ.ГГГГ"""
+
+    def validate(self, value):
+        try:
+            datetime.datetime.strptime(value, '%d.%m.%Y')
+        except ValueError:
+            raise TypeError("Не верный тип параметра {}. Должена быть дата, формат: ДД.ММ.ГГГГ".format(value))
+
     pass
 
 
-class BirthDayField(object):
+class BirthDayField(BaseField):
+    """День рожденье(не больше 70)"""
+
+    def validate(self, value):
+        super(BirthDayField, self).validate(value)
+        if (datetime.date.today() - datetime.datetime.strptime(value, '%d.%m.%Y')).days / 365 > 70:
+            raise TypeError(
+                "Не верный тип параметра {}. Должена быть дата, формат: ДД.ММ.ГГГГ,(не более 70 лет)".format(value))
+
     pass
 
 
-class GenderField(object):
+class GenderField(BaseField):
+    """Пол"""
+
+    def validate(self, value):
+        if value not in GENDERS:
+            raise TypeError(
+                "Не верный тип параметра {}. Пол задается цифрой: 1(unknown), 2(male) или 3(female)".format(value))
+
     pass
 
 
-class ClientIDsField(object):
+class ClientIDsField(BaseField):
+    def validate(self, values):
+        if not isinstance(values, list):
+            raise TypeError("Не верный тип параметра {0}. Праматр должен быть типа {1}".format(values, type(list)))
+        if not all(isinstance(v, int) and v >= 0 for v in values):
+            raise TypeError("Не верный тип параметра {0}. Все значения должны быть больше 0".format(values))
+
     pass
+
+
+# endregion
 
 
 class ClientsInterestsRequest(object):
@@ -231,6 +304,7 @@ class MainHTTPHandler(BaseHTTPRequestHandler):
         logging.info(context)
         self.wfile.write(json.dumps(r))
         return
+
 
 if __name__ == "__main__":
     op = OptionParser()

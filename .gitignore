@@ -7,3 +7,7 @@ hw1/.gitignore
 hw1/.idea/
 hw1/Logs/.DS_Store
 hw3/.DS_Store
+.gitignore
+api.log
+hw3/api.log
+

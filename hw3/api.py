@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 
 # Нужно реализовать простое HTTP API сервиса скоринга. Шаблон уже есть в api.py, тесты в test.py.
-# API необычно тем, что пользователи дергают методы POST запросами. Чтобы получить результат
+# API необычно тем, что польщователи дергают методы POST запросами. Чтобы получить результат
 # пользователь отправляет в POST запросе валидный JSON определенного формата на локейшн /method
 
 # Структура json-запроса:
@@ -40,10 +40,6 @@
 # аргументы валидны, если валидны все поля по отдельности и если присутсвует хоть одна пара
 # phone-email, first name-last name, gender-birthday с непустыми значениями.
 
-# Контекст
-# в словарь контекста должна прописываться запись  "has" - список полей,
-# которые были не пустые для данного запроса
-
 # Ответ:
 # в ответ выдается произвольное число, которое больше или равно 0
 # {"score": <число>}
@@ -51,7 +47,6 @@
 # {"score": 42}
 # или если произошла ошибка валидации
 # {"code": 422, "error": "<сообщение о том какое поле невалидно>"}
-
 
 # $ curl -X POST  -H "Content-Type: application/json" -d '{"account": "horns&hoofs", "login": "h&f", "method": "online_score", "token": "55cc9ce545bcd144300fe9efc28e65d415b923ebb6be1e19d2750a2c03e80dd209a27954dca045e5bb12418e7d89b6d718a9e35af34e14e1d5bcd5a08f21fc95", "arguments": {"phone": "79175002040", "email": "stupnikov@otus.ru", "first_name": "Стансилав", "last_name": "Ступников", "birthday": "01.01.1990", "gender": 1}}' http://127.0.0.1:8080/method/
 # -> {"code": 200, "response": {"score": 5.0}}
@@ -63,11 +58,6 @@
 
 # Валидация аругементов:
 # аргументы валидны, если валидны все поля по отдельности.
-
-# Контекст
-# в словарь контекста должна прописываться запись  "nclients" - количество id'шников,
-# переденанных в запрос
-
 
 # Ответ:
 # в ответ выдается словарь <id клиента>:<список интересов>. Список генерировать произвольно.
@@ -81,14 +71,15 @@
 # Требование: в результате в git должно быть только два(2!) файлика: api.py, test.py.
 # Deadline: следующее занятие
 
+import re
 import json
 import datetime
 import logging
 import hashlib
+import random
 import uuid
 from optparse import OptionParser
 from BaseHTTPServer import HTTPServer, BaseHTTPRequestHandler
-from lepl.apps.rfc3696 import Email
 from abc import ABCMeta, abstractmethod
 
 SALT = "Otus"
@@ -115,6 +106,7 @@ GENDERS = {
     MALE: "male",
     FEMALE: "female",
 }
+EMPTY_VALUES = (None, (), [], {}, '')
 
 
 # region Fields
@@ -135,10 +127,7 @@ class CharField(BaseField):
 
     def validate(self, value):
         if not isinstance(value, str):
-            raise TypeError(
-                "Не верный тип параметра {0} - {1}. Праматр должен быть типа {2}".format(value, type(value), type(str)))
-
-    pass
+            raise TypeError("Не верный тип параметра {0} - {1}. Праматр должен быть типа {2}".format(value, type(value), type(str)))
 
 
 class ArgumentsField(BaseField):
@@ -149,29 +138,22 @@ class ArgumentsField(BaseField):
             raise TypeError(
                 "Не верный тип параметра {} - {}. Праматр должен быть типа {}".format(value, type(value), type(dict)))
 
-    pass
-
 
 class EmailField(CharField):
     """Поле e-mail"""
 
     def validate(self, value):
         super(EmailField, self).validate(value)
-        if Email(value):
+        if "@" not in value:
             raise TypeError("Не верный тип параметра {}. Должен быть e-mail : example@ex.com".format(value))
-
-    pass
 
 
 class PhoneField(BaseField):
     """Телефонный номер"""
 
     def validate(self, value):
-        if not isinstance(value, str) and not isinstance(value, int) \
-                and len(value) == 11 and str(value).startswith('7'):
+        if not re.match(r'(^7[\d]{10}$)', str(value)):
             raise TypeError("Не верный тип параметра {}. Должен быть телефон, формат: 7ХХХХХХХХХХ".format(value))
-
-    pass
 
 
 class DateField(BaseField):
@@ -183,19 +165,15 @@ class DateField(BaseField):
         except ValueError:
             raise TypeError("Не верный тип параметра {}. Должена быть дата, формат: ДД.ММ.ГГГГ".format(value))
 
-    pass
 
-
-class BirthDayField(BaseField):
+class BirthDayField(DateField):
     """День рожденье(не больше 70)"""
 
     def validate(self, value):
         super(BirthDayField, self).validate(value)
-        if (datetime.date.today() - datetime.datetime.strptime(value, '%d.%m.%Y')).days / 365 > 70:
+        if (datetime.datetime.today() - datetime.datetime.strptime(value, '%d.%m.%Y')).days / 365 > 70:
             raise TypeError(
                 "Не верный тип параметра {}. Должена быть дата, формат: ДД.ММ.ГГГГ,(не более 70 лет)".format(value))
-
-    pass
 
 
 class GenderField(BaseField):
@@ -206,28 +184,80 @@ class GenderField(BaseField):
             raise TypeError(
                 "Не верный тип параметра {}. Пол задается цифрой: 1(unknown), 2(male) или 3(female)".format(value))
 
-    pass
-
 
 class ClientIDsField(BaseField):
+    """Идентификато клиента"""
+
     def validate(self, values):
         if not isinstance(values, list):
             raise TypeError("Не верный тип параметра {0}. Праматр должен быть типа {1}".format(values, type(list)))
-        if not all(isinstance(v, int) and v >= 0 for v in values):
+        if not all(isinstance(item, int) and item >= 0 for item in values):
             raise TypeError("Не верный тип параметра {0}. Все значения должны быть больше 0".format(values))
-
-    pass
 
 
 # endregion
 
+# region Request
 
-class ClientsInterestsRequest(object):
+class MetaRequest(type):
+    """Метакласс запроса """
+
+    def __new__(mcs, name, bases, attributes):
+        fields = []
+        for field_name, field in attributes.items():
+            if isinstance(field, BaseField):
+                field._name = field_name
+                fields.append((field_name, field))
+
+        new_class = super(MetaRequest, mcs).__new__(mcs, name, bases, attributes)
+        new_class.fields = fields
+        return new_class
+
+
+class Request(object):
+    """Запрос"""
+    __metaclass__ = MetaRequest
+
+    def __init__(self, **kwargs):
+        self._errors = {}
+        self.base_fields = []
+        for field, value in kwargs.items():
+            setattr(self, field, value)
+            self.base_fields.append(field)
+
+    def validate(self):
+        for name, field in self.fields:
+            if name not in self.base_fields:
+                if field.required:
+                    self._errors[name] = "Обязательно поле"
+                continue
+
+            value = getattr(self, name)
+            if value in EMPTY_VALUES and not field.nullable:
+                self._errors[name] = "Поле не может быть пустым"
+
+            try:
+                field.validate(value)
+            except TypeError as ex:
+                self._errors[name] = ex.message
+
+    @property
+    def errors(self):
+        return self._errors
+
+    def is_valid(self):
+        return not self.errors
+
+
+class ClientsInterestsRequest(Request):
+    """Запрос интересов клиента"""
     client_ids = ClientIDsField(required=True)
     date = DateField(required=False, nullable=True)
 
 
-class OnlineScoreRequest(object):
+class OnlineScoreRequest(Request):
+    """Запрос на онлайн-счет"""
+
     first_name = CharField(required=False, nullable=True)
     last_name = CharField(required=False, nullable=True)
     email = EmailField(required=False, nullable=True)
@@ -235,20 +265,35 @@ class OnlineScoreRequest(object):
     birthday = BirthDayField(required=False, nullable=True)
     gender = GenderField(required=False, nullable=True)
 
+    def validate(self):
+        super(OnlineScoreRequest, self).validate()
+        if not self._errors:
+            pairs = [
+                ("phone", "email"),
+                ("first_name", "last_name"),
+                ("gender", "birthday")
+            ]
+            if not any(all(name in self.base_fields for name in fields) for fields in pairs):
+                self._errors["arguments"] = "Не корректный список аргументов"
 
-class MethodRequest(object):
+
+class MethodRequest(Request):
     account = CharField(required=False, nullable=True)
     login = CharField(required=True, nullable=True)
     token = CharField(required=True, nullable=True)
     arguments = ArgumentsField(required=True, nullable=True)
-    method = CharField(required=True, nullable=False)
+    method = CharField(required=True, nullable=True)
 
     @property
     def is_admin(self):
         return self.login == ADMIN_LOGIN
 
 
+# endregion
+
+
 def check_auth(request):
+    """проверка аутентификации"""
     if request.login == ADMIN_LOGIN:
         digest = hashlib.sha512(datetime.datetime.now().strftime("%Y%m%d%H") + ADMIN_SALT).hexdigest()
     else:
@@ -258,10 +303,57 @@ def check_auth(request):
     return False
 
 
-def method_handler(request, ctx):
-    response, code = None, None
-    return response, code
+# region Handler
+class ClientsInterestsHandler(object):
+    """Обработчик запросов клиента"""
+    interests = ["Coding", "Python", "DevOps", "Books", "Music", "Cars", "Travel", "Snowboarding"]
 
+    def processing_handler(self, request, context):
+        client_interests = ClientsInterestsRequest(**request.arguments)
+        client_interests.validate()
+        if not client_interests.is_valid():
+            return client_interests.errors, INVALID_REQUEST
+
+        response = {cid: random.sample(self.interests, 2) for cid in client_interests.client_ids}
+        context["nclients"] = len(client_interests.client_ids)
+        return response, OK
+
+
+class OnlineScoreHandler(object):
+    """Обработка онлайн-оценки"""
+
+    def processing_handler(self, request, context):
+        online_score = OnlineScoreRequest(**request.arguments)
+        online_score.validate()
+        if not online_score.is_valid():
+            return online_score.errors, INVALID_REQUEST
+
+        context["has"] = online_score.base_fields
+        score = 42 if request.is_admin else random.randint(0, 100)
+        return {"score": score}, OK
+
+
+def method_handler(request, ctx):
+    handlers = {
+        "clients_interests": ClientsInterestsHandler,
+        "online_score": OnlineScoreHandler,
+    }
+    try:
+        method_request = MethodRequest(**request["body"])
+    except Exception as ex:
+        return ex.message, INVALID_REQUEST
+
+    method_request.validate()
+
+    if not method_request.is_valid():
+        return method_request.errors, INVALID_REQUEST
+    if not check_auth(method_request):
+        return "Forbidden", FORBIDDEN
+
+    return handlers[method_request.method]().processing_handler(method_request, ctx)
+
+
+# endregion
 
 class MainHTTPHandler(BaseHTTPRequestHandler):
     router = {
@@ -283,11 +375,11 @@ class MainHTTPHandler(BaseHTTPRequestHandler):
 
         if request:
             path = self.path.strip("/")
-            logging.info("%s: %s %s" % (self.path, data_string, context["request_id"]))
+            logging.info("%s: %s %s" % (self.path, str, context["request_id"]))
             if path in self.router:
                 try:
                     response, code = self.router[path]({"body": request, "headers": self.headers}, context)
-                except Exception, e:
+                except Exception as e:
                     logging.exception("Unexpected error: %s" % e)
                     code = INTERNAL_ERROR
             else:
